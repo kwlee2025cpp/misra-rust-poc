@@ -1,0 +1,7 @@
+[package]
+name = "misra-rust-poc"
+version = "0.1.0"
+edition = "2024"
+description = "Evidence for MISRA C++:2023 -> Rust mapping questions (rules 10.4.1 and 11.6.2)"
+
+[dependencies]
