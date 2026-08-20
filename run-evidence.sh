@@ -3,7 +3,7 @@
 set -u
 echo "rustc: $(rustc --version)"; echo
 echo "=========== POSITIVE CASES (these compile) ==========="
-for b in a1_global_asm_no_unsafe_block a2_naked_passes_forbid b1_uninit_heap_read; do
+for b in a1_global_asm_no_unsafe_block a2_naked_passes_forbid a3_ctor_runs_before_main b1_uninit_heap_read; do
   echo "--- $b"; cargo run --quiet --bin "$b" || echo "  (FAILED)"
 done
 echo

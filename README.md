@@ -41,7 +41,12 @@ Three conclusions:
    block syntax (`negative/n1_global_asm_forbidden.rs`). That is a precise,
    checkable criterion; "not possible" is not.
 
-3. **Naked functions pass `#![forbid(unsafe_code)]` entirely**
+3. **`global_asm!` can run before `main`** (`src/bin/a3_ctor_runs_before_main.rs`).
+   It can emit a constructor entry, so the code executes with no call site
+   anywhere in the Rust source and no `unsafe` keyword in the file. A reviewer
+   auditing a safe-Rust crate has nothing in the source to look at.
+
+4. **Naked functions pass `#![forbid(unsafe_code)]` entirely**
    (`src/bin/a2_naked_passes_forbid.rs`). A whole function body of raw machine
    code compiles inside a crate that has declared itself free of unsafe code.
    Naked functions were stabilized in Rust 1.88, after the lint gained its
@@ -73,6 +78,20 @@ Two points for the rationale:
 
 ---
 
+## Why this matters for the classification
+
+MISRA C++:2023 gives 10.4.1 category **Required**, and its rationale concerns the
+`asm` declaration being conditionally-supported, producing implementation-defined
+behaviour, and harming portability, with intrinsics named as the better modern
+alternative. None of it concerns memory safety.
+
+Rust's `unsafe` keyword gates memory safety and nothing else. So "does it need
+`unsafe`" does not track what this rule protects, and the harm the rule describes
+is reachable from safe Rust via `global_asm!`.
+
+(The standard's text is not quoted here. It is commercially licensed and not
+redistributable; the above is a characterisation, not a reproduction.)
+
 ## What this does *not* establish
 
 These are facts about **rustc**, not about MISRA. Whether they change a
@@ -85,6 +104,7 @@ headline listing. Corrections welcome.
 ```
 src/bin/a1_global_asm_no_unsafe_block.rs   global_asm! with no unsafe block   -> compiles
 src/bin/a2_naked_passes_forbid.rs          naked fn under forbid(unsafe_code) -> compiles
+src/bin/a3_ctor_runs_before_main.rs        global_asm! ctor runs before main  -> compiles
 src/bin/b1_uninit_heap_read.rs             reads unwritten heap storage       -> UB, prints 0
 negative/n1_global_asm_forbidden.rs        global_asm! under forbid           -> must fail
 negative/n2_asm_forbidden.rs               unsafe block under forbid          -> must fail

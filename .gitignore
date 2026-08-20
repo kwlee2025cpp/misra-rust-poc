@@ -1,1 +1,6 @@
 target
+
+# Never commit the MISRA standard or any licensed copy of it.
+# The text is commercially licensed and not redistributable; this repo is
+# intended to be shared publicly.
+*.pdf
