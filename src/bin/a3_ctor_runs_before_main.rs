@@ -28,15 +28,39 @@ std::arch::global_asm!(
     ".quad _poc_ctor",
 );
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+std::arch::global_asm!(
+    ".section .rodata",
+    "poc_msg: .ascii \"[ctor] I ran first.\\n\"",
+    ".text",
+    ".globl poc_ctor",
+    "poc_ctor:",
+    "    mov rax, 1",
+    "    mov rdi, 1",
+    "    lea rsi, [rip + poc_msg]",
+    "    mov rdx, 20",
+    "    syscall",
+    "    ret",
+    ".section .init_array",
+    ".p2align 3",
+    ".quad poc_ctor",
+);
+
+/// True on the targets where the constructor half of this demo is implemented.
+const HAS_CTOR: bool = cfg!(any(
+    target_vendor = "apple",
+    all(target_os = "linux", target_arch = "x86_64")
+));
+
 fn main() {
     let mut out = std::io::stdout();
     out.write_all(b"[main] main started.\n").unwrap();
     out.flush().unwrap();
 
-    if cfg!(not(target_vendor = "apple")) {
+    if !HAS_CTOR {
         println!(
-            "(the constructor half of this demo is written for Mach-O; \
-             the ELF equivalent uses .init_array)"
+            "(the constructor half of this demo is implemented for Mach-O and \
+             x86_64 ELF only; this target has neither)"
         );
     }
 }

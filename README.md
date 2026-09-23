@@ -90,9 +90,22 @@ use the ELF equivalent `.init_array`.
 - **`global_asm!` is rejected by `#![forbid(unsafe_code)]`** — *"using this macro
   is unsafe even though it does not need an `unsafe` block"*
   [Run it](https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&code=%23%21%5Bforbid%28unsafe_code%29%5D%0Ause%20std%3A%3Aarch%3A%3Aglobal_asm%3B%0Aglobal_asm%21%28%22.globl%20poc_sym%22%2C%20%22poc_sym%3A%22%2C%20%22ret%22%29%3B%0Afn%20main%28%29%20%7B%7D%0A)
-- **Naked functions are also rejected by `#![forbid(unsafe_code)]`** on 1.98.1 —
+- **Naked functions are also rejected by `#![forbid(unsafe_code)]`** on 1.98.1 (this was `a2`, now `negative/n3`) —
   *"usage of the unsafe `#[naked]` attribute"*
   [Run it](https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&code=%23%21%5Bforbid%28unsafe_code%29%5D%0Ause%20std%3A%3Aarch%3A%3Anaked_asm%3B%0A%0A%23%5Bunsafe%28naked%29%5D%0Aextern%20%22C%22%20fn%20poc_naked%28%29%20-%3E%20u32%20%7B%0A%20%20%20%20naked_asm%21%28%22mov%20eax%2C%207%22%2C%20%22ret%22%29%0A%7D%0A%0Afn%20main%28%29%20%7B%0A%20%20%20%20println%21%28%22naked%20returned%20%7B%7D%22%2C%20poc_naked%28%29%29%3B%0A%7D%0A)
+
+### Continuous re-run
+
+`.github/workflows/evidence.yml` rebuilds and re-runs every demo on stable, on
+both Linux and macOS, on each push and once a month. Every claim here is a claim
+about what one toolchain accepts, so it is worth exactly as much as its last
+re-run. A separate `toolchain-drift` job asserts both halves of the correction
+above: that `1.96.0` accepts the naked-function file and that current stable
+rejects it. If either flips, CI fails rather than the README quietly going stale.
+
+The constructor demo now covers Mach-O (`__DATA,__mod_init_func`, aarch64) and
+x86_64 ELF (`.init_array`); CI checks that `[ctor] I ran first.` really is the
+first line of output on both.
 
 ### Correction: the naked-function lint gap was real, and is now closed
 

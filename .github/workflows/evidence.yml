@@ -1,0 +1,93 @@
+name: evidence
+
+# The claims in this repo are about what a *specific toolchain* accepts, so they
+# are only worth as much as their last re-run. This workflow re-runs them.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Rust ships every six weeks; a monthly run catches a claim going stale
+    # before someone quotes it at a standards meeting.
+    - cron: '0 6 1 * *'
+
+jobs:
+  evidence:
+    name: ${{ matrix.os }} / stable
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Build every demo
+        run: cargo build --bins --verbose
+
+      - name: Negative cases must FAIL to compile
+        run: cargo test --test negative -- --nocapture
+
+      - name: a1 - global_asm! with no unsafe block
+        run: cargo run -q --bin a1_global_asm_no_unsafe_block
+
+      - name: b1 - reading uninitialised heap
+        run: cargo run -q --bin b1_uninit_heap_read
+
+      - name: a3 - assembly must run BEFORE main
+        shell: bash
+        run: |
+          out=$(cargo run -q --bin a3_ctor_runs_before_main)
+          printf '%s\n' "$out"
+          first=$(printf '%s\n' "$out" | head -1)
+          if [ "$first" != "[ctor] I ran first." ]; then
+            echo "FAIL: expected the constructor line first, got: $first"
+            exit 1
+          fi
+          echo "OK: the constructor ran before main, with no unsafe in the file."
+
+  toolchain-drift:
+    # This repo once claimed forbid(unsafe_code) let naked functions through.
+    # True on 1.96.0, false on current stable. Both halves are asserted here so
+    # the correction cannot silently rot in either direction.
+    name: drift - naked fn under forbid(unsafe_code)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: rustc 1.96.0 accepted it
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal
+          if rustup run 1.96.0 rustc --edition 2024 negative/n3_naked_forbidden.rs \
+               --emit=metadata -o "$RUNNER_TEMP/n3_old.rmeta" 2> "$RUNNER_TEMP/old.err"; then
+            echo "1.96.0: ACCEPTED, as documented."
+          else
+            echo "1.96.0: rejected - the historical claim no longer reproduces."
+            cat "$RUNNER_TEMP/old.err"
+            exit 1
+          fi
+
+      - name: current stable rejects it
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup run stable rustc --version
+          if rustup run stable rustc --edition 2024 negative/n3_naked_forbidden.rs \
+               --emit=metadata -o "$RUNNER_TEMP/n3_new.rmeta" 2> "$RUNNER_TEMP/new.err"; then
+            echo "stable: ACCEPTED - the lint gap has reopened. Update the README."
+            exit 1
+          fi
+          if grep -q 'naked' "$RUNNER_TEMP/new.err"; then
+            echo "stable: REJECTED for the expected reason."
+            cat "$RUNNER_TEMP/new.err"
+          else
+            echo "stable: rejected, but not for the naked-attribute reason."
+            cat "$RUNNER_TEMP/new.err"
+            exit 1
+          fi

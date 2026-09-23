@@ -27,3 +27,9 @@ fn global_asm_is_rejected_by_forbid_unsafe_code() {
 fn unsafe_block_is_rejected_by_forbid_unsafe_code() {
     must_fail("negative/n2_asm_forbidden.rs", "usage of an `unsafe` block");
 }
+
+/// Was a *positive* demo until rustc 1.98.1 closed the gap. See the file header.
+#[test]
+fn naked_functions_are_rejected_by_forbid_unsafe_code() {
+    must_fail("negative/n3_naked_forbidden.rs", "`#[naked]` attribute");
+}
