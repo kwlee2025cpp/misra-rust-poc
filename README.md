@@ -78,6 +78,37 @@ Two points for the rationale:
 
 ---
 
+## Run it without cloning (Rust Playground)
+
+Verified on the official Playground, `rustc 1.98.1` (2026-09-01), edition 2024,
+x86_64 Linux. The Mach-O demos in this repo use `__DATA,__mod_init_func`; these
+use the ELF equivalent `.init_array`.
+
+- **Assembly runs before `main`, no `unsafe` anywhere in the file** — prints
+  `[ctor] I ran first.` then `[main] main started.`
+  [Run it](https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&code=%2F%2F%20MISRA%20C%2B%2B%3A2023%20Rule%2010.4.1%20counter-example.%0A%2F%2F%20No%20%60unsafe%60%20keyword%20appears%20anywhere%20in%20this%20file%2C%20yet%20assembly%20runs%20before%20main.%0Ause%20std%3A%3Aarch%3A%3Aglobal_asm%3B%0Ause%20std%3A%3Aio%3A%3AWrite%3B%0A%0Aglobal_asm%21%28%0A%20%20%20%20%22.section%20.rodata%22%2C%0A%20%20%20%20%22poc_msg%3A%20.ascii%20%5C%22%5Bctor%5D%20I%20ran%20first.%5C%5Cn%5C%22%22%2C%0A%20%20%20%20%22.text%22%2C%0A%20%20%20%20%22.globl%20poc_ctor%22%2C%0A%20%20%20%20%22poc_ctor%3A%22%2C%0A%20%20%20%20%22%20%20%20%20mov%20rax%2C%201%22%2C%0A%20%20%20%20%22%20%20%20%20mov%20rdi%2C%201%22%2C%0A%20%20%20%20%22%20%20%20%20lea%20rsi%2C%20%5Brip%20%2B%20poc_msg%5D%22%2C%0A%20%20%20%20%22%20%20%20%20mov%20rdx%2C%2020%22%2C%0A%20%20%20%20%22%20%20%20%20syscall%22%2C%0A%20%20%20%20%22%20%20%20%20ret%22%2C%0A%20%20%20%20%22.section%20.init_array%22%2C%0A%20%20%20%20%22.quad%20poc_ctor%22%2C%0A%29%3B%0A%0Afn%20main%28%29%20%7B%0A%20%20%20%20std%3A%3Aio%3A%3Astdout%28%29.write_all%28b%22%5Bmain%5D%20main%20started.%5Cn%22%29.unwrap%28%29%3B%0A%7D%0A)
+- **`global_asm!` is rejected by `#![forbid(unsafe_code)]`** — *"using this macro
+  is unsafe even though it does not need an `unsafe` block"*
+  [Run it](https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&code=%23%21%5Bforbid%28unsafe_code%29%5D%0Ause%20std%3A%3Aarch%3A%3Aglobal_asm%3B%0Aglobal_asm%21%28%22.globl%20poc_sym%22%2C%20%22poc_sym%3A%22%2C%20%22ret%22%29%3B%0Afn%20main%28%29%20%7B%7D%0A)
+- **Naked functions are also rejected by `#![forbid(unsafe_code)]`** on 1.98.1 —
+  *"usage of the unsafe `#[naked]` attribute"*
+  [Run it](https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&code=%23%21%5Bforbid%28unsafe_code%29%5D%0Ause%20std%3A%3Aarch%3A%3Anaked_asm%3B%0A%0A%23%5Bunsafe%28naked%29%5D%0Aextern%20%22C%22%20fn%20poc_naked%28%29%20-%3E%20u32%20%7B%0A%20%20%20%20naked_asm%21%28%22mov%20eax%2C%207%22%2C%20%22ret%22%29%0A%7D%0A%0Afn%20main%28%29%20%7B%0A%20%20%20%20println%21%28%22naked%20returned%20%7B%7D%22%2C%20poc_naked%28%29%29%3B%0A%7D%0A)
+
+### Correction: the naked-function lint gap was real, and is now closed
+
+Earlier revisions of this repo claimed that `#![forbid(unsafe_code)]` rejects
+`global_asm!` but lets naked functions through, and suggested that was a lint gap
+worth reporting upstream. That was true on `rustc 1.96.0` (2026-05-25), where
+`src/bin/a2_naked_passes_forbid.rs` still compiles and runs. It is **no longer
+true on `rustc 1.98.1`**, which rejects `#[unsafe(naked)]` under the same lint
+with a dedicated diagnostic. Nothing needs reporting upstream; it has been fixed.
+
+This does not affect the Rule 10.4.1 argument, which rests on `global_asm!`
+requiring no `unsafe` block at all, not on the behaviour of the `unsafe_code`
+lint. It is also a small illustration of the point the argument is about: a
+toolchain two releases old gives a different answer about what is and is not
+reachable from safe Rust.
+
 ## Why this matters for the classification
 
 MISRA C++:2023 gives 10.4.1 category **Required**, and its rationale concerns the
